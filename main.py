@@ -13,21 +13,7 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
 
-try:
-    from pypdf import PdfReader
-except ImportError:
-    # Mostrar error en ventana si tkinter ya arrancó, o en consola
-    try:
-        root = tk.Tk()
-        root.withdraw()
-        messagebox.showerror(
-            "Dependencia faltante",
-            "La librería 'pypdf' no está instalada.\nInstálala con:\n\n  pip install pypdf",
-        )
-        root.destroy()
-    except Exception:
-        pass
-    sys.exit("ERROR: pypdf no instalado. Ejecuta: pip install pypdf")
+from pypdf import PdfReader
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +249,7 @@ def main() -> None:
     nombre_base   = os.path.splitext(os.path.basename(ruta_pdf))[0]
     dir_inicial   = os.path.dirname(ruta_pdf)
 
-    print(f"\n📄 Abriendo: {ruta_pdf}")
+    print(f"\n Abriendo: {ruta_pdf}")
     print(f"   Páginas totales: {total_paginas}")
 
     # 3. Seleccionar carpeta de salida
@@ -292,7 +278,7 @@ def main() -> None:
 
     # 6. Metadatos
     if metadatos:
-        print("\n📋 METADATOS")
+        print("\n METADATOS")
         print("-" * 40)
         meta = extraer_metadatos(reader)
         for clave, valor in meta.items():
@@ -301,7 +287,7 @@ def main() -> None:
 
     # 7. Texto
     modo = "(páginas seleccionadas)" if paginas else "(todas las páginas)"
-    print(f"\n📝 Extrayendo texto {modo}...")
+    print(f"\n Extrayendo texto {modo}...")
     textos = extraer_texto(reader, paginas)
 
     if formato in ("txt", "ambos"):
@@ -315,7 +301,7 @@ def main() -> None:
 
     # 8. Imágenes
     if imagenes:
-        print("\n🖼️  Imágenes detectadas por página:")
+        print("\n Imágenes detectadas por página:")
         imgs = listar_imagenes(reader)
         if imgs:
             for pagina, nombres in imgs.items():
@@ -329,7 +315,7 @@ def main() -> None:
 
     # 9. Tablas
     if tablas:
-        print("\n📊 Detección de tablas simples (heurística):")
+        print("\n Detección de tablas simples (heurística):")
         todas_tablas: dict[str, list] = {}
         for pagina, texto in textos.items():
             filas = detectar_tablas_simples(texto)
@@ -345,7 +331,7 @@ def main() -> None:
             print("  (No se detectaron tablas)")
 
     # 10. Fin
-    print("\n✅ ¡Proceso completado!\n")
+    print("\n ¡Proceso completado!\n")
     messagebox.showinfo(
         "¡Listo!",
         f"Extracción completada.\nArchivos guardados en:\n{salida_dir}",
