@@ -148,3 +148,233 @@ El script te solicitará:
 2. Seleccionar la carpeta donde se guardarán los resultados.
 3. Elegir qué elementos extraer (metadatos, imágenes, tablas y formato de texto).
 4. Indicar qué páginas deseas procesar (o presionar ENTER para todas).
+
+
+---
+
+## Uso como Objeto COM en Windows (FoxPro / VBA / VBScript)
+
+PDF Extractor puede registrarse como un **objeto COM (OLE Automation)** en Windows, lo que permite usarlo desde **Visual FoxPro**, VBA (Excel, Access), VBScript y cualquier lenguaje que soporte `CREATEOBJECT`.
+
+### Archivos del módulo COM
+
+| Archivo | Descripción |
+| :--- | :--- |
+| [`com_server.py`](file:///home/santiagoemanuel/mis_proyectos/pdf_extractor/com_server.py) | Servidor COM que envuelve `PDFExtractor` en una interfaz IDispatch compatible con OLE Automation. |
+| [`registrar_com.bat`](file:///home/santiagoemanuel/mis_proyectos/pdf_extractor/registrar_com.bat) | Script batch para instalar dependencias y registrar el objeto COM (ejecutar como Administrador). |
+| [`desregistrar_com.bat`](file:///home/santiagoemanuel/mis_proyectos/pdf_extractor/desregistrar_com.bat) | Script batch para eliminar el registro COM del sistema. |
+| [`ejemplo_foxpro.prg`](file:///home/santiagoemanuel/mis_proyectos/pdf_extractor/ejemplo_foxpro.prg) | Programa de ejemplo completo para Visual FoxPro. |
+
+---
+
+### Requisitos en Windows
+
+1. **Python 3.10+** instalado y agregado al `PATH` del sistema (marcar "Add Python to PATH" durante la instalación).
+2. **pypdf** – biblioteca para leer archivos PDF.
+3. **pywin32** – biblioteca que provee el soporte COM para Python.
+
+Ambas bibliotecas se instalan automáticamente al ejecutar `registrar_com.bat`, o manualmente con:
+
+```cmd
+pip install pypdf pywin32
+```
+
+---
+
+### Instalación y Registro del Objeto COM
+
+1. Copiar toda la carpeta `pdf_extractor` al equipo Windows (por ejemplo, en `C:\pdf_extractor\`).
+2. Hacer **clic derecho** sobre `registrar_com.bat` → **"Ejecutar como administrador"**.
+3. Si todo sale bien, verás el mensaje:
+
+```
+ProgID:  PDFExtractor.Application
+CLSID:   {E8A7D5B1-4F3C-4A2E-9B1D-6C8F0E2A3B5D}
+```
+
+El objeto queda registrado globalmente y disponible para cualquier aplicación COM del sistema.
+
+> **Nota:** Si mueves la carpeta a otra ubicación, es necesario volver a ejecutar `registrar_com.bat` para actualizar la ruta en el registro de Windows.
+
+---
+
+### Des-registro
+
+Para eliminar el objeto COM del registro de Windows, ejecutar `desregistrar_com.bat` como Administrador.
+
+---
+
+### Uso desde Visual FoxPro
+
+#### Crear el objeto
+
+```foxpro
+oExtractor = CREATEOBJECT("PDFExtractor.Application")
+```
+
+#### Abrir un PDF y consultar propiedades
+
+```foxpro
+lExito = oExtractor.AbrirPDF("C:\documentos\factura.pdf")
+
+IF lExito
+    ? "Páginas:", oExtractor.TotalPaginas
+    ? "Nombre:", oExtractor.NombreBase
+    ? "Ruta:", oExtractor.RutaPDF
+ELSE
+    ? "Error:", oExtractor.UltimoError()
+ENDIF
+```
+
+#### Extraer texto de todas las páginas
+
+```foxpro
+*!* Devuelve JSON: {"1": "texto pág 1", "2": "texto pág 2", ...}
+cTextoJSON = oExtractor.ObtenerTexto("")
+```
+
+#### Extraer texto de una sola página
+
+```foxpro
+*!* Devuelve texto plano directamente
+cTexto = oExtractor.ObtenerTextoPagina(1)
+? cTexto
+```
+
+#### Extraer texto de páginas específicas
+
+```foxpro
+*!* Páginas separadas por comas
+cTextoJSON = oExtractor.ObtenerTexto("1,3,5")
+```
+
+#### Obtener metadatos
+
+```foxpro
+*!* JSON: {"titulo": "...", "autor": "...", "total_paginas": N, ...}
+cMeta = oExtractor.ObtenerMetadatos()
+```
+
+#### Listar imágenes
+
+```foxpro
+*!* JSON: {"1": ["Im0", "Im1"], "3": ["Im0"], ...}
+cImagenes = oExtractor.ObtenerImagenes()
+```
+
+#### Detectar tablas
+
+```foxpro
+*!* Primero obtener texto, luego detectar tablas
+oExtractor.ObtenerTexto("")
+cTablas = oExtractor.DetectarTablas()
+```
+
+#### Extracción completa en una sola llamada
+
+```foxpro
+cResultado = oExtractor.ExtraerTodo( ;
+    "C:\documentos\factura.pdf", ;
+    "C:\salida", ;
+    "", ;
+    "ambos", ;
+    1, ;
+    1, ;
+    1  ;
+)
+```
+
+Parámetros de `ExtraerTodo`:
+
+| # | Parámetro | Tipo | Descripción |
+| :--- | :--- | :--- | :--- |
+| 1 | `ruta_pdf` | Cadena | Ruta completa al archivo PDF. |
+| 2 | `salida_dir` | Cadena | Directorio donde se guardan los archivos generados. |
+| 3 | `paginas_csv` | Cadena | Páginas separadas por comas (`"1,3,5"`) o `""` para todas. |
+| 4 | `formato` | Cadena | `"txt"`, `"json"` o `"ambos"`. |
+| 5 | `metadatos` | Entero | `1` = extraer metadatos, `0` = omitir. |
+| 6 | `imagenes` | Entero | `1` = listar imágenes, `0` = omitir. |
+| 7 | `tablas` | Entero | `1` = detectar tablas, `0` = omitir. |
+
+#### Manejo de errores
+
+Todos los métodos capturan excepciones internamente. Si un método falla:
+- Devuelve `False` (`.F.`) para métodos booleanos, o `"{}"` / `""` para métodos que devuelven cadenas.
+- El mensaje de error queda disponible llamando a `UltimoError()`:
+
+```foxpro
+lExito = oExtractor.AbrirPDF("C:\no_existe.pdf")
+IF !lExito
+    MESSAGEBOX(oExtractor.UltimoError(), 16, "Error")
+ENDIF
+```
+
+#### Cerrar y liberar
+
+```foxpro
+oExtractor.Cerrar()
+RELEASE oExtractor
+```
+
+---
+
+### Referencia Completa de la Interfaz COM
+
+#### Propiedades (solo lectura)
+
+| Propiedad | Tipo | Descripción |
+| :--- | :--- | :--- |
+| `TotalPaginas` | Entero | Número total de páginas del PDF abierto (0 si no hay PDF). |
+| `NombreBase` | Cadena | Nombre del archivo PDF sin extensión ni directorios. |
+| `RutaPDF` | Cadena | Ruta completa del PDF actualmente abierto. |
+
+#### Métodos
+
+| Método | Parámetros | Retorno | Descripción |
+| :--- | :--- | :--- | :--- |
+| `AbrirPDF(ruta)` | `ruta`: Cadena | Booleano | Abre un archivo PDF para procesamiento. |
+| `Cerrar()` | Ninguno | Booleano | Cierra el PDF y reinicia el extractor. |
+| `ObtenerTexto(paginas_csv)` | `paginas_csv`: Cadena (`"1,3"` o `""`) | Cadena JSON | Extrae texto de las páginas indicadas. |
+| `ObtenerTextoPagina(pagina)` | `pagina`: Entero (base 1) | Cadena | Extrae texto plano de una sola página. |
+| `ObtenerMetadatos()` | Ninguno | Cadena JSON | Devuelve metadatos del PDF. |
+| `ObtenerImagenes()` | Ninguno | Cadena JSON | Lista las imágenes XObject por página. |
+| `DetectarTablas()` | Ninguno | Cadena JSON | Detecta tablas heurísticas (requiere `ObtenerTexto` previo). |
+| `ExtraerTodo(...)` | Ver tabla arriba | Cadena JSON | Extracción completa con guardado automático en disco. |
+| `UltimoError()` | Ninguno | Cadena | Devuelve el mensaje del último error. |
+
+---
+
+### Cómo funciona internamente
+
+```
+FoxPro / VBA / VBScript
+    │
+    │  CREATEOBJECT("PDFExtractor.Application")
+    ▼
+┌──────────────────┐     ┌──────────────────┐     ┌─────────────┐
+│  COM / IDispatch │────▶│  com_server.py   │────▶│ extractor.py │
+│  (pywin32)       │     │  PDFExtractorCOM │     │ PDFExtractor │
+└──────────────────┘     └──────────────────┘     └──────┬──────┘
+                                                         │
+                                                         ▼
+                                                    ┌─────────┐
+                                                    │  pypdf  │
+                                                    └─────────┘
+```
+
+1. FoxPro llama a `CREATEOBJECT("PDFExtractor.Application")`.
+2. Windows busca el ProgID en el registro y lanza el proceso Python (`com_server.py`).
+3. `PDFExtractorCOM` recibe las llamadas via IDispatch y las traduce a llamadas al `PDFExtractor` original.
+4. Los resultados complejos (diccionarios, listas) se serializan a **JSON** antes de devolverlos, ya que COM/FoxPro solo maneja tipos simples (cadenas, enteros, booleanos).
+5. FoxPro recibe cadenas JSON que puede parsear con `STREXTRACT()` o con una librería JSON para VFP como [nfJson](https://github.com/pctolmern/foxjson).
+
+---
+
+### Notas importantes para FoxPro
+
+- **Tipos de datos:** FoxPro no tiene tipos nativos para diccionarios ni listas. Por eso todos los resultados complejos se devuelven como **cadenas JSON**. Se recomienda usar una librería JSON para FoxPro para parsearlos cómodamente.
+- **Booleanos:** En los parámetros donde se espera un booleano, se usan enteros: `1` = verdadero, `0` = falso.
+- **Rutas de archivos:** Usar siempre rutas completas con backslash (`C:\carpeta\archivo.pdf`).
+- **Codificación:** Los textos se devuelven en UTF-8. Si el PDF contiene caracteres especiales (acentos, ñ), FoxPro debería manejarlos correctamente en versiones recientes.
+- **Rendimiento:** El primer `CREATEOBJECT` puede tardar un par de segundos en inicializar Python. Las llamadas posteriores son rápidas.
+- **Servidor Out-of-Process:** El objeto COM se ejecuta en un proceso Python separado. Esto significa que FoxPro no se congela durante operaciones largas, pero también que el objeto no comparte memoria con FoxPro.
